@@ -1,10 +1,21 @@
 import numpy as np
 import PyQt5
-
+import os
+import pandas as pd
 from PyQt5 import QtCore, QtGui, QtWidgets
 import sys
 from PyQt5.QtWidgets import QLabel, QHBoxLayout, QGridLayout, QMainWindow, QWidget, QTabWidget, QVBoxLayout, QPushButton, QApplication, QGridLayout, QGroupBox, QLineEdit
-from PyQt5.QtWidgets import QGridLayout, QCheckBox, QTextEdit, QTextBrowser, QComboBox
+from PyQt5.QtWidgets import QGridLayout, QCheckBox, QTextEdit, QTextBrowser, QComboBox, QTableView, QMessageBox, QStyle
+from PyQt5.QtCore import QAbstractTableModel, Qt, QSize
+import json
+import webbrowser
+
+try:
+    with open("Config.json", 'r') as f:
+        Config = json.load(f)
+except:
+    with open("Config_default.json", 'r') as f:
+        Config = json.load(f)
 
 
 class App(QMainWindow):
@@ -13,35 +24,34 @@ class App(QMainWindow):
         self.title = 'Have a good clearing'
         self.left = 0
         self.top = 0
-        self.width = 800
-        self.height = 800
+        self.width = 1000
+        self.height = 1000
         self.setWindowTitle(self.title)
         self.setGeometry(self.left, self.top, self.width, self.height)
-        self.table_widget = HAGC(self)
+        self.Tablayout = QVBoxLayout()
+        self.tabs = QTabWidget()
+        self.tabs.resize(1000, 1000)
+        self.tab_GPLE = GPLEAnalysis(self)
+        self.tab_SIW = SIW(self)
+        self.tabs.addTab(self.tab_GPLE, "GPLE Analysis")
+        self.tabs.addTab(self.tab_SIW, "SIW")
+        self.Tablayout.addWidget(self.tabs)
+        #self.setLayout(self.Tablayout)
+        self.table_widget = QWidget()
+        self.table_widget.setLayout(self.Tablayout)
         self.setCentralWidget(self.table_widget)
         self.show()
 
 
-class HAGC(QWidget):
+class GPLEAnalysis(QWidget):
     def __init__(self, parent):
-        super(QWidget, self).__init__(parent)
-        self.mainLayout = QGridLayout()
-        '''self.LogInLayout=QHBoxLayout()
-        self.Label=QLabel('userName:')
-        self.LogInLayout.addWidget(self.Label)'''
-        self.Tablayout = QVBoxLayout()
-        self.tabs = QTabWidget()
-        self.tabs.resize(500, 500)
+        super(GPLEAnalysis, self).__init__(parent)
         self.createGPLEAnalysisTab()
-        self.createSIWTab()
-
-        self.tabs.addTab(self.tab_GPLE, "GPLE Analysis")
-        self.tabs.addTab(self.tab_SIW, "SIW")
-        self.Tablayout.addWidget(self.tabs)
-        self.setLayout(self.Tablayout)
-        # self.mainLayout.addWidget(self.LogInLayout,0,0,1,2)
-        #self.mainLayout.addWidget(self.Tablayout)
-        #self.setLayout(self.mainLayout)
+        self.setLayout(self.tab_GPLE.layout)
+        self.setDefaultInfo()
+        self.Size = self.sizeHint()
+        #print(self.sizeHint())
+        #self.miniSize=self.sizeHint()
 
     def createGPLEAnalysisTab(self):
         self.tab_GPLE = QWidget()
@@ -56,6 +66,16 @@ class HAGC(QWidget):
         self.createRunMedusaBox()
         self.createRunGPLEStraBox()
         self.createGenerateFinalReportBox()
+        self.createExtraWindowButton = QPushButton()
+        self.createExtraWindowButton.setFixedSize(25, 600)
+        style = self.style()
+        icon = style.standardIcon(style.SP_MediaPlay)
+        self.createExtraWindowButton.setIcon(icon)
+
+        self.createExtraWindowButton_clicked = -1
+        self.extraWindowCreated = 0
+        self.createExtraWindowButton.clicked.connect(self.addRemoveExtraWindow)
+
         self.RunButton.clicked.connect(self.Run)
 
         self.tab_GPLE.layout.addWidget(self.RunButton, 0, 0, 1, 1)
@@ -69,11 +89,28 @@ class HAGC(QWidget):
         self.tab_GPLE.layout.addWidget(self.RunMedusaBox, 3, 2, 1, 2)
         self.tab_GPLE.layout.addWidget(self.RunGPLEStraBox, 3, 4, 1, 2)
         self.tab_GPLE.layout.addWidget(self.GenerateFinalReportBox, 4, 0, 1, 1)
+        self.tab_GPLE.layout.addWidget(
+            self.createExtraWindowButton, 0, 6, 5, 6)
 
         self.RuningInfo = QTextBrowser()
-        self.RuningInfo.setObjectName('Runing Info')
+        self.RuningInfo.setObjectName('Running Info')
         self.tab_GPLE.layout.addWidget(self.RuningInfo, 4, 1, 1, 5)
-        self.tab_GPLE.setLayout(self.tab_GPLE.layout)
+
+        #self.tab_GPLE.setLayout(self.tab_GPLE.layout)
+
+    def addRemoveExtraWindow(self):
+        if self.createExtraWindowButton_clicked == 1:
+            self.RunExtraComparisonBox.hide()
+            self.resize(self.Size)
+        if self.createExtraWindowButton_clicked == -1:
+            if self.extraWindowCreated == 1:
+                self.RunExtraComparisonBox.show()
+            else:
+                self.createRunExtraComparison()
+                self.tab_GPLE.layout.addWidget(
+                    self.RunExtraComparisonBox, 0, 7, 4, 8)
+                self.extraWindowCreated = 1
+        self.createExtraWindowButton_clicked *= -1
 
     def createCustomisedFilterConditionBox(self):
         self.columnsCondition = [
@@ -92,6 +129,7 @@ class HAGC(QWidget):
         self.FilterConditionLine1.setFixedHeight(20)
         self.AddFilterConditionButton = QPushButton('+')
         self.AddFilterConditionButton.clicked.connect(self.addFilterCondition)
+        self.AddFilterConditionButton.setFixedSize(30, 30)
         self.layout_filterCondition = QGridLayout()
         self.layout_filterCondition.addWidget(
             self.FilterConditionComboBox1, 0, 0)
@@ -120,20 +158,14 @@ class HAGC(QWidget):
         pathLabel = QLabel()
         pathLabel.setText('mainPath:')
         self.mainPathLine = QLineEdit()
-        self.toolButtonOpenDialog_mainpath = QtWidgets.QToolButton()
-        self.toolButtonOpenDialog_mainpath.setText('...')
-        self.toolButtonOpenDialog_mainpath.clicked.connect(
-            lambda: self._open_file_dialog(self.mainPathLine))
-        self.toolButtonOpenDialog_mainpath.setFixedSize(20, 20)
+        self.toolButtonOpenDialog_mainpath = self._create_file_dialog_button(
+            self.mainPathLine)
 
         protoTypeDirLabel = QLabel()
         protoTypeDirLabel.setText('prototype Folder:')
         self.protoTypeDirLine = QLineEdit()
-        self.toolButtonOpenDialog_protoType = QtWidgets.QToolButton()
-        self.toolButtonOpenDialog_protoType.setFixedSize(20, 20)
-        self.toolButtonOpenDialog_protoType.setText('...')
-        self.toolButtonOpenDialog_protoType.clicked.connect(
-            lambda: self._open_file_dialog(self.protoTypeDirLine))
+        self.toolButtonOpenDialog_protoType = self._create_file_dialog_button(
+            self.protoTypeDirLine)
 
         startDateLabel = QLabel()
         startDateLabel.setText('startDate: (e.g.2020-12-01)')
@@ -146,11 +178,13 @@ class HAGC(QWidget):
 
         layout = QGridLayout()
         layout.addWidget(pathLabel, 0, 0, 1, 1)
-        layout.addWidget(self.mainPathLine, 0, 1, 1, 3)
-        layout.addWidget(self.toolButtonOpenDialog_mainpath, 0, 4, 1, 1)
+        layout.addWidget(self.mainPathLine, 0, 1, 1, 4)
+        layout.addWidget(self.toolButtonOpenDialog_mainpath, 0,
+                         4, 1, 3, alignment=QtCore.Qt.AlignRight)
         layout.addWidget(protoTypeDirLabel, 1, 0, 1, 1)
-        layout.addWidget(self.protoTypeDirLine, 1, 1, 1, 3)
-        layout.addWidget(self.toolButtonOpenDialog_protoType, 1, 4, 1, 1)
+        layout.addWidget(self.protoTypeDirLine, 1, 1, 1, 4)
+        layout.addWidget(self.toolButtonOpenDialog_protoType,
+                         1, 4, 1, 3, alignment=QtCore.Qt.AlignRight)
 
         layout.addWidget(startDateLabel, 2, 0)
         layout.addWidget(self.startDateLine, 2, 1)
@@ -158,11 +192,6 @@ class HAGC(QWidget):
         layout.addWidget(self.endDateLine, 2, 3)
 
         self.MainClearingInfoBox.setLayout(layout)
-
-    def _open_file_dialog(self, line):
-        result = str(QtWidgets.QFileDialog.getExistingDirectory())
-        line.setText('{}'.format(result))
-        return result
 
     def createMRiskQueryBox(self):
         self.MRiskQueryBox = QGroupBox("MRisk Query")
@@ -172,6 +201,7 @@ class HAGC(QWidget):
         nameLabel.setText('UserName:')
 
         self.UserNameLine = QLineEdit()
+
         passwordLabel = QLabel()
         passwordLabel.setText('PassWord:')
         self.PasswordLine = QLineEdit()
@@ -180,17 +210,16 @@ class HAGC(QWidget):
         self.customisedSQL.setCheckable(True)
         self.customisedSQL.setChecked(False)
         self.customisedSQLPathLabel = QLabel()
-        self.customisedSQLPathLabel.setText('SQL Path')
+        self.customisedSQLPathLabel.setText('Path:')
         self.customisedSQLPathLine = QLineEdit()
-        self.toolButtonOpenDialog_sql = QtWidgets.QToolButton()
-        self.toolButtonOpenDialog_sql.setFixedSize(20, 20)
-        self.toolButtonOpenDialog_sql.setText('...')
-        self.toolButtonOpenDialog_sql.clicked.connect(
-            lambda: self._open_file_dialog(self.customisedSQLPathLine))
+        self.customisedSQLPathLine.setFixedWidth(170)
+        self.toolButtonOpenDialog_sql = self._create_file_dialog_button(
+            self.customisedSQLPathLine, ChooseFile=True)
         layout_sql = QGridLayout()
         layout_sql.addWidget(self.customisedSQLPathLabel, 0, 0, 1, 1)
         layout_sql.addWidget(self.customisedSQLPathLine, 0, 1, 1, 3)
-        layout_sql.addWidget(self.toolButtonOpenDialog_sql, 0, 4, 1, 1)
+        layout_sql.addWidget(self.toolButtonOpenDialog_sql,
+                             0, 4, 1, 4, alignment=QtCore.Qt.AlignRight)
         self.customisedSQL.setLayout(layout_sql)
         layout = QGridLayout()
         layout.addWidget(nameLabel, 0, 0, 1, 1)
@@ -205,11 +234,28 @@ class HAGC(QWidget):
         self.DropfileDownloadingBox = QGroupBox("Dropfile Downloading")
         self.DropfileDownloadingBox.setCheckable(True)
         self.DropfileDownloadingBox.setChecked(True)
+        DropfileDownloadingInfoButton = self._create_info_button(
+            'Input: TIC.txt file under main path \nOutput: dropfiles w.r.t TIC in "scalpel dropfiles" folder under main path\n')
+        DropfileDownloadingInfoButton.setParent(self.DropfileDownloadingBox)
+        DropfileDownloadingInfoButton.move(150, 0)
+
+        '''self.Download_layout = QVBoxLayout()
+        self.Download_layout.addWidget(
+            DropfileDownloadingInfoButton, alignment=QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
+        self.DropfileDownloadingBox.setLayout(self.Download_layout)'''
 
     def createRunComparisonBox(self):
         self.RunComparisonBox = QGroupBox("Run Comparison")
         self.RunComparisonBox.setCheckable(True)
         self.RunComparisonBox.setChecked(True)
+        ComparisonInfoButton = self._create_info_button(
+            'Input: prototype folder && dropfiles folder \nOutput: comparison results\n')
+        ComparisonInfoButton.setParent(self.RunComparisonBox)
+        ComparisonInfoButton.move(150, 0)
+
+        #layout = QVBoxLayout()
+        #layout.addWidget(ComparisonInfoButton, alignment=QtCore.Qt.AlignTop)
+        #self.RunComparisonBox.setLayout(layout)
 
     def createRunScalpelBox(self):
         self.RunScalpelBox = QGroupBox("Run Scalpel")
@@ -300,6 +346,75 @@ class HAGC(QWidget):
         GenerateReportBox.setChecked(True)
         return GenerateReportBox
 
+    def createRunExtraComparison(self):
+        self.RunExtraComparisonBox = QGroupBox("Run Extra Comparison")
+        self.RunExtraComparisonBox.setCheckable(True)
+        self.RunExtraComparisonBox.setChecked(True)
+
+        self.TicLabel = QLabel()
+        self.TicLabel.setText('TICS')
+        self.TicText = QTextEdit()
+
+        self.PrototypeLabel_1 = QLabel()
+        self.PrototypeLabel_1.setText('Prototype Folder: ')
+        self.protoTypeDirLine_1 = QLineEdit()
+        self.protoTypeDirFileDiaglog = self._create_file_dialog_button(
+            self.protoTypeDirLine_1)
+
+        self.prototypeButton = QPushButton('Create Folder')
+        self.prototypeButton.clicked.connect(self.createPrototypeFolder)
+        self.RunExtraComparisonButton = QPushButton('Run Extra Comparison')
+        self.RunExtraComparisonButton.clicked.connect(self.RunExtraComparison)
+        self.ReplaceInitialResults = QPushButton("Replace Initial Report")
+        self.GenerateClearingReport = QPushButton("Generate Clearing Report")
+        layout_Comparison = QGridLayout()
+        layout_Comparison.addWidget(self.TicLabel, 0, 0, 1, 2)
+        layout_Comparison.addWidget(self.TicText, 1, 0, 1, 2)
+        layout_Comparison.addWidget(self.PrototypeLabel_1, 2, 0, 1, 1)
+        layout_Comparison.addWidget(self.prototypeButton, 2, 1, 1, 2)
+        layout_Comparison.addWidget(self.protoTypeDirLine_1, 3, 0, 1, 2)
+        layout_Comparison.addWidget(
+            self.protoTypeDirFileDiaglog, 3, 2, 1, 1)
+        layout_Comparison.addWidget(self.RunExtraComparisonButton, 4, 0, 1, 2)
+        layout_Comparison.addWidget(self.ReplaceInitialResults, 5, 0, 1, 2)
+        layout_Comparison.addWidget(self.GenerateClearingReport, 6, 0, 1, 2)
+
+        self.RunExtraComparisonBox.setLayout(layout_Comparison)
+
+    def createPrototypeFolder(self):
+        mainPath = self.mainPathLine.text()
+        prototypepath = os.path.join(mainPath, 'ExtraComparison', 'prototype')
+        self.RuningInfo.append('Create folder:')
+        self.RuningInfo.append(prototypepath)
+        if os.path.exists(prototypepath):
+            self._create_message_box('Path exist')
+        else:
+            os.makedirs(prototypepath)
+        #webbrowser.open(prototypepath)
+
+        self.protoTypeDirLine_1.setText(prototypepath)
+
+    def setDefaultInfo(self):
+        self.UserNameLine.setText(Config["UserName"])
+        self.PasswordLine.setText(Config["PassWord"])
+        self.protoTypeDirLine.setText(Config["PrototypePath"])
+        self.mainPathLine.setText(Config["MainPath"])
+
+    def RunExtraComparison(self):
+        #read and save TIC
+        self.RuningInfo.append('read TIC')
+        mainPath = self.mainPathLine.text()
+        TicText = self.TicText.toPlainText()
+        try:
+            with open(os.path.join(mainPath, 'ExtraComparison', 'TIC.txt'), 'w') as f:
+                f.write(TicText)
+            self.RuningInfo.append(os.path.join(
+                mainPath, 'ExtraComparison', 'TIC.txt'))
+        except Exception as e:
+            self._create_message_box(str(e), 'Error')
+            self.RuningInfo.append('save TIC failed')
+            return 0
+
     def Run(self):
         self.RuningInfo.append(
             '....................Start.....................')
@@ -372,15 +487,98 @@ class HAGC(QWidget):
         self.RuningInfo.append(
             '....................Finish.....................')
 
+    def _open_file_dialog(self, line, ChooseFile=False):
+    
+        fileDialog = QtWidgets.QFileDialog
+        if ChooseFile == False:
+            text0=line.text()
+            result = str(fileDialog.getExistingDirectory())
+            if result=='': ## didn't choose any folder and doesn't replace the original text
+                result=text0
+            line.setText('{}'.format(result))
+        else:
+            result = str(fileDialog.getOpenFileName())
+            line.setText(result.split('\'')[1])
+
+        return result
+
+    def _create_file_dialog_button(self, PathLine, ChooseFile=False):
+    
+        toolButtonOpenDialog = QtWidgets.QToolButton()
+        toolButtonOpenDialog.setText('...')
+        toolButtonOpenDialog.clicked.connect(
+            lambda: self._open_file_dialog(PathLine, ChooseFile))
+        toolButtonOpenDialog.setFixedSize(20, 20)
+        return toolButtonOpenDialog
+
+    def _create_info_button(self, InfoText):
+        InfoButton = QPushButton()
+        InfoButton.setFixedSize(28, 20)
+        InfoButton.setIcon(self.style().standardIcon(
+            self.style().SP_FileDialogInfoView))
+        InfoButton.setIconSize(QSize(15, 15))
+        #DropfileDownloadingInfo.clicked.connect(lambda: self.RuningInfo.append('Clicked'))
+        #self.DropfileDownloadingInfo=QTextBrowser()
+        #self.DropfileDownloadingInfo.setText('information')
+        InfoButton.clicked.connect(
+            lambda: self.RuningInfo.append(InfoText))
+        return InfoButton
+
+    def _create_message_box(self, text, title=""):
+        msgBox = QMessageBox()
+        msgBox.setIcon(QMessageBox.Information)
+        msgBox.setText(text)
+        msgBox.setWindowTitle(title)
+        msgBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        msgBox.exec()
+
+
+class pandasModel(QAbstractTableModel):
+
+    def __init__(self, data):
+        QAbstractTableModel.__init__(self)
+        self._data = data
+
+    def rowCount(self, parent=None):
+        return self._data.shape[0]
+
+    def columnCount(self, parnet=None):
+        return self._data.shape[1]
+
+    def data(self, index, role=Qt.DisplayRole):
+        if index.isValid():
+            if role == Qt.DisplayRole:
+                return str(self._data.iloc[index.row(), index.column()])
+        return None
+
+    def headerData(self, col, orientation, role):
+        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
+            return self._data.columns[col]
+        return None
+
+
+class SIW(QWidget):
+    def __init__(self, parent):
+        super(SIW, self).__init__(parent)
+        self.createSIWTab()
+        self.setLayout(self.tab_SIW.layout)
+
     def createSIWTab(self):
         self.tab_SIW = QWidget()
         self.tab_SIW.layout = QVBoxLayout(self)
         self.pushButton1 = QPushButton("No Run")
+        self.TableReview = QTableView()
+        df = pd.DataFrame({'a': [1, 2, 3], 'b': [1, 2, 3], 'c': [1, 2, 3]})
+        model = pandasModel(df)
+        self.TableReview.setModel(model)
+        self.pushButton1.clicked.connect(lambda: self.TableReview.show())
         self.tab_SIW.layout.addWidget(self.pushButton1)
-        self.tab_SIW.setLayout(self.tab_SIW.layout)
+
+        #self.tab_SIW.layout.addWidget(self.TableReview)
 
 
 class MyStream(QtCore.QObject):
+
     message = QtCore.pyqtSignal(str)
 
     def __init__(self, parent=None):
